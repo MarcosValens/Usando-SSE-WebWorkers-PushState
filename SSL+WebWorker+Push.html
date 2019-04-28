@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>SSE + WebWorker + Push</title>
+    <style>
+        /* Always set the map height explicitly to define the size of the div
+         * element that contains the map. */
+        #map {
+            height: 100%;
+            width: 80%;
+            float: right;
+        }
+
+        /* Optional: Makes the sample page fill the window. */
+        html, body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+        }
+
+        .container {
+            display: inline-block;
+            float: left;
+        }
+
+        ul {
+            list-style-type: none;
+        }
+    </style>
+</head>
+<body>
+<aside>
+    <div class="container">
+        <ul id="usuarios"></ul>
+    </div>
+    <div class="container">
+        <ul id="mensajes"></ul>
+    </div>
+</aside>
+<div id="map"></div>
+<script>
+    let sse, objectSSE, map;
+    let markers = [];
+
+    /**
+     * WEBWORKER
+     */
+
+    if (typeof(Worker) !== "undefined") {
+        w = new Worker("Workers/messages.js");
+        w.onmessage = function (event) {
+            let user = event.data.user;
+            let mens = event.data.message;
+            let ulUser = document.getElementById("usuarios");
+            let liUser = document.createElement("li");
+            let ulMens = document.getElementById("mensajes");
+            let liMens = document.createElement("li");
+            liUser.appendChild(document.createTextNode(user + ":"));
+            ulUser.appendChild(liUser);
+            liMens.appendChild(document.createTextNode(mens));
+            ulMens.appendChild(liMens);
+
+            /**
+             * PUSH
+             */
+
+            if (window.Notification && Notification.permission !== "denied") {
+                Notification.requestPermission(function (status) {  // status is "granted", if accepted by user
+                    var n = new Notification('' + user + ' diu:', {
+                        body: '' + mens + '',
+                        icon: 'maps_icon_grey.png' // optional
+                    });
+                    setTimeout(function () {
+                        n.close();
+                    }, 5000)
+                });
+            }
+        }
+    } else {
+        console.log("EL navegador no soporta WebWorkers")
+    }
+
+    /**
+     * SEE
+     */
+
+    if (typeof(EventSource) !== "undefined") {
+        sse = new EventSource('http://35.194.72.13/pra_SSE.php');
+        sse.onmessage = function (event) {
+            objectSSE = JSON.parse(event.data);
+            let pos = {
+                lat: objectSSE.lat,
+                lng: objectSSE.lon
+            };
+            let marker = new google.maps.Marker({
+                position: pos,
+                map: map,
+                title: 'Participante 334'
+            });
+            marker.setMap(map);
+            map.setCenter(pos);
+            markers.push(marker);
+            if (markers.length > 1) {
+                setMapOnAll();
+            }
+        };
+    } else {
+        console.log("El navegador no soporta SSE")
+    }
+
+    /**
+     * BORRA TODOS LOS MARCADORES DEL MAPA MENOS EL ULTIMO
+     */
+
+    function setMapOnAll() {
+        for (var i = 0; i < markers.length - 1; i++) {
+            markers[i].setMap(null);
+        }
+    }
+
+    /**
+     * DIBUJA EL MAPA
+     */
+
+    function initMap() {
+        map = new google.maps.Map(document.getElementById('map'), {
+            center: {lat: 49.1400493, lng: 1.7710782},
+            zoom: 10
+        });
+    }
+</script>
+<script async defer
+        src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCKQQ19NjR4pCFQf8hp9fyB8EqHoynWZwU&callback=initMap">
+</script>
+</body>
+</html>
